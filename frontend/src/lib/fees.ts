@@ -1,4 +1,4 @@
-import { EpochFeeData, LinkCostEstimate } from '@/types/network';
+import { EpochFeeData } from '@/types/network';
 
 const LAMPORTS_PER_SOL = 1_000_000_000;
 const EPOCHS_PER_MONTH = 15;
@@ -100,39 +100,3 @@ export function computeEarnings(
 }
 
 export { EPOCHS_PER_MONTH };
-
-/**
- * Static infrastructure cost reference data.
- */
-export const LINK_COST_ESTIMATES: LinkCostEstimate[] = [
-  {
-    category: 'Metro Cross-Connect',
-    monthlyMin: 200,
-    monthlyMax: 500,
-    notes: 'Colo cross-connect',
-  },
-  {
-    category: 'Regional Dark Fiber',
-    monthlyMin: 1_000,
-    monthlyMax: 5_000,
-    notes: '100-500km',
-  },
-  {
-    category: 'Long-Haul 100G Wavelength',
-    monthlyMin: 3_000,
-    monthlyMax: 15_000,
-    notes: 'Carrier backbone',
-  },
-  {
-    category: 'Subsea / Intercontinental',
-    monthlyMin: 8_000,
-    monthlyMax: 25_000,
-    notes: 'Submarine cable',
-  },
-  {
-    category: 'NID (amortized)',
-    monthlyMin: 0,
-    monthlyMax: 500,
-    notes: 'One-time $2K-$10K / 2yr',
-  },
-];

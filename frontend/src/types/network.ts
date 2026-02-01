@@ -91,13 +91,6 @@ export interface EpochFeeData {
   validatorCount: number;
 }
 
-export interface LinkCostEstimate {
-  category: string;
-  monthlyMin: number;
-  monthlyMax: number;
-  notes: string;
-}
-
 export type AppMode = 'forecast' | 'linkvalue';
 
 export interface SimulationParams {

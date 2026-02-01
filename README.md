@@ -38,7 +38,6 @@ After running a comparison, the tool estimates real SOL and USD earnings:
 - **SOL price** fetched from CoinGecko public API
 - **Earnings highlight card** showing estimated SOL/epoch, SOL/month, and USD equivalents for the top-gaining operator
 - **Earnings columns** in the comparison table (Est. SOL/epoch, Est. SOL/month)
-- **Infrastructure cost reference** — collapsible table of approximate industry cost ranges for context
 - Graceful degradation: works with percentages only if fee data or price is unavailable
 
 ## Prerequisites

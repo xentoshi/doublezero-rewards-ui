@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import {
   BarChart,
   Bar,
@@ -15,11 +15,11 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Download, HelpCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { Download, HelpCircle } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useNetworkStore } from '@/store/networkStore';
 import { formatPercent, formatValue, getOperatorColor, formatSol, formatUsd } from '@/lib/utils';
-import { computeEarnings, LINK_COST_ESTIMATES, EPOCHS_PER_MONTH } from '@/lib/fees';
+import { computeEarnings, EPOCHS_PER_MONTH } from '@/lib/fees';
 
 function downloadCsv(filename: string, rows: Record<string, string | number>[]) {
   if (rows.length === 0) return;
@@ -201,57 +201,6 @@ function EarningsHighlight() {
         {solPrice != null && <>{' '}SOL: ${solPrice.toFixed(2)} &bull; from CoinGecko.</>}
         {' '}Estimates use ~{EPOCHS_PER_MONTH} epochs/month. Actual earnings depend on future fee pools and network changes.
       </p>
-    </div>
-  );
-}
-
-function CostReference() {
-  const [isOpen, setIsOpen] = useState(false);
-  const { feePoolData, solPrice } = useNetworkStore();
-
-  return (
-    <div className="border border-ink">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center gap-2 p-3 text-left hover:bg-neutral-50 transition-colors"
-      >
-        {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        <span className="text-xs font-mono uppercase tracking-widest text-neutral-500">
-          Infrastructure Cost Reference
-        </span>
-      </button>
-      {isOpen && (
-        <div className="p-3 pt-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="font-mono text-xs uppercase tracking-widest">Category</TableHead>
-                <TableHead className="text-right font-mono text-xs uppercase tracking-widest">Monthly Range</TableHead>
-                <TableHead className="font-mono text-xs uppercase tracking-widest hidden sm:table-cell">Notes</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {LINK_COST_ESTIMATES.map((cost) => (
-                <TableRow key={cost.category} className="hover:bg-neutral-100 transition-colors">
-                  <TableCell className="font-mono text-sm">{cost.category}</TableCell>
-                  <TableCell className="text-right font-mono text-sm">
-                    {formatUsd(cost.monthlyMin)}&ndash;{formatUsd(cost.monthlyMax)}
-                  </TableCell>
-                  <TableCell className="font-mono text-sm text-neutral-500 hidden sm:table-cell">{cost.notes}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <p className="text-[11px] font-mono text-neutral-400 mt-2">
-            Approximate industry ranges for reference only. Actual costs vary by provider, region, and contract terms.
-          </p>
-          {feePoolData && solPrice != null && (
-            <p className="text-[11px] font-mono text-neutral-400 mt-1">
-              At current rates, 1% share &asymp; {formatSol(feePoolData.totalFeeSol * 0.01)}/epoch &asymp; {formatUsd(feePoolData.totalFeeSol * 0.01 * EPOCHS_PER_MONTH * solPrice)}/mo.
-            </p>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -481,8 +430,6 @@ function ComparisonResults() {
         <strong className="text-ink">Modified</strong> is after. The <strong className="text-ink">Delta</strong> column shows who gains or loses reward share.
       </p>
 
-      {/* Cost Reference */}
-      <CostReference />
     </div>
   );
 }
