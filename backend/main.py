@@ -7,16 +7,64 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Optional
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 from functools import partial
+from collections import OrderedDict
+import hashlib
+import logging
+import threading
 import pandas as pd
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 from network_shapley import network_shapley
 from network_linkestimate import network_linkestimate
 
-# Thread pool for CPU-bound Shapley computations
-_executor = ThreadPoolExecutor(max_workers=4)
+# Process pool for CPU-bound Shapley computations (avoids GIL contention)
+_executor = ProcessPoolExecutor(max_workers=4)
+
+# --------------- Request-level LRU cache ---------------
+_CACHE_MAX = 32
+_cache: OrderedDict = OrderedDict()
+_cache_lock = threading.Lock()
+
+
+def _compute_cache_key(
+    private_links_df: pd.DataFrame,
+    devices_df: pd.DataFrame,
+    demand_df: pd.DataFrame,
+    public_links_df: pd.DataFrame,
+    operator_uptime: float,
+    contiguity_bonus: float,
+    demand_multiplier: float,
+) -> str:
+    """Hash network inputs + params into a deterministic cache key."""
+    h = hashlib.sha256()
+    for df in (private_links_df, devices_df, demand_df, public_links_df):
+        h.update(pd.util.hash_pandas_object(df).values.tobytes())
+    h.update(f"{operator_uptime}|{contiguity_bonus}|{demand_multiplier}".encode())
+    return h.hexdigest()
+
+
+def _cache_get(key: str):
+    """Return cached value or None. Moves hit to end (most-recent)."""
+    with _cache_lock:
+        if key in _cache:
+            _cache.move_to_end(key)
+            return _cache[key]
+    return None
+
+
+def _cache_put(key: str, value):
+    """Store value and evict oldest if over capacity."""
+    with _cache_lock:
+        if key in _cache:
+            _cache.move_to_end(key)
+        _cache[key] = value
+        while len(_cache) > _CACHE_MAX:
+            _cache.popitem(last=False)
+
 
 app = FastAPI(
     title="DoubleZero Rewards API",
@@ -28,7 +76,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -63,10 +111,10 @@ class DemandEntry(BaseModel):
     Multicast: bool = False
 
 class NetworkState(BaseModel):
-    private_links: List[PrivateLink]
-    devices: List[Device]
-    demand: List[DemandEntry]
-    public_links: List[PublicLink]
+    private_links: List[PrivateLink] = Field(max_length=5000)
+    devices: List[Device] = Field(max_length=2000)
+    demand: List[DemandEntry] = Field(max_length=10000)
+    public_links: List[PublicLink] = Field(max_length=5000)
 
 class SimulationRequest(BaseModel):
     network: NetworkState
@@ -192,20 +240,29 @@ async def simulate(request: SimulationRequest):
                 detail=f"Too many operators ({n_ops}). Maximum is 20."
             )
 
-        loop = asyncio.get_event_loop()
-        result_df = await loop.run_in_executor(
-            _executor,
-            partial(
-                network_shapley,
-                private_links=private_links_df,
-                devices=devices_df,
-                demand=demand_df,
-                public_links=public_links_df,
-                operator_uptime=request.operator_uptime,
-                contiguity_bonus=request.contiguity_bonus,
-                demand_multiplier=request.demand_multiplier,
-            ),
+        cache_key = _compute_cache_key(
+            private_links_df, devices_df, demand_df, public_links_df,
+            request.operator_uptime, request.contiguity_bonus, request.demand_multiplier,
         )
+        cached = _cache_get(cache_key)
+        if cached is not None:
+            result_df = cached
+        else:
+            loop = asyncio.get_event_loop()
+            result_df = await loop.run_in_executor(
+                _executor,
+                partial(
+                    network_shapley,
+                    private_links=private_links_df,
+                    devices=devices_df,
+                    demand=demand_df,
+                    public_links=public_links_df,
+                    operator_uptime=request.operator_uptime,
+                    contiguity_bonus=request.contiguity_bonus,
+                    demand_multiplier=request.demand_multiplier,
+                ),
+            )
+            _cache_put(cache_key, result_df)
 
         results = [
             OperatorResult(
@@ -223,20 +280,35 @@ async def simulate(request: SimulationRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Calculation error: {str(e)}")
+        logger.exception("Calculation failed")
+        raise HTTPException(status_code=500, detail="An internal calculation error occurred.")
 
 
 @app.post("/api/compare", response_model=CompareResponse)
 async def compare(request: CompareRequest):
     """Compare baseline vs modified network configurations"""
     try:
-        # Calculate baseline and modified in parallel
+        # Calculate baseline and modified in parallel (with per-network caching)
         bl_private, bl_devices, bl_demand, bl_public = network_state_to_dataframes(request.baseline)
         mod_private, mod_devices, mod_demand, mod_public = network_state_to_dataframes(request.modified)
 
+        bl_key = _compute_cache_key(
+            bl_private, bl_devices, bl_demand, bl_public,
+            request.operator_uptime, request.contiguity_bonus, request.demand_multiplier,
+        )
+        mod_key = _compute_cache_key(
+            mod_private, mod_devices, mod_demand, mod_public,
+            request.operator_uptime, request.contiguity_bonus, request.demand_multiplier,
+        )
+
+        baseline_df = _cache_get(bl_key)
+        modified_df = _cache_get(mod_key)
+
+        # Only compute uncached results
         loop = asyncio.get_event_loop()
-        baseline_df, modified_df = await asyncio.gather(
-            loop.run_in_executor(
+        futures = []
+        if baseline_df is None:
+            futures.append(loop.run_in_executor(
                 _executor,
                 partial(
                     network_shapley,
@@ -248,8 +320,9 @@ async def compare(request: CompareRequest):
                     contiguity_bonus=request.contiguity_bonus,
                     demand_multiplier=request.demand_multiplier,
                 ),
-            ),
-            loop.run_in_executor(
+            ))
+        if modified_df is None:
+            futures.append(loop.run_in_executor(
                 _executor,
                 partial(
                     network_shapley,
@@ -261,8 +334,16 @@ async def compare(request: CompareRequest):
                     contiguity_bonus=request.contiguity_bonus,
                     demand_multiplier=request.demand_multiplier,
                 ),
-            ),
-        )
+            ))
+
+        computed = await asyncio.gather(*futures) if futures else []
+        ci = 0
+        if baseline_df is None:
+            baseline_df = computed[ci]; ci += 1
+            _cache_put(bl_key, baseline_df)
+        if modified_df is None:
+            modified_df = computed[ci]
+            _cache_put(mod_key, modified_df)
 
         baseline_results = [
             OperatorResult(
@@ -315,7 +396,8 @@ async def compare(request: CompareRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Calculation error: {str(e)}")
+        logger.exception("Calculation failed")
+        raise HTTPException(status_code=500, detail="An internal calculation error occurred.")
 
 
 @app.post("/api/link-estimate", response_model=LinkEstimateResponse)
@@ -378,7 +460,8 @@ async def link_estimate(request: LinkEstimateRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Calculation error: {str(e)}")
+        logger.exception("Calculation failed")
+        raise HTTPException(status_code=500, detail="An internal calculation error occurred.")
 
 
 @app.post("/api/operators")
@@ -388,7 +471,8 @@ async def get_operators(network: NetworkState):
         operators = list(set(d.Operator for d in network.devices if d.Operator and d.Operator != 'Private'))
         return {"operators": sorted(operators)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Failed to extract operators")
+        raise HTTPException(status_code=500, detail="Failed to extract operators from network.")
 
 
 # City mappings for location names
@@ -508,8 +592,8 @@ async def get_live_network():
             list_resp = await client.get(f"{S3_BUCKET_URL}?list-type=2")
             list_resp.raise_for_status()
 
-        # Parse XML to find epochs
-        import xml.etree.ElementTree as ET
+        # Parse XML to find epochs (defusedxml prevents XXE attacks)
+        import defusedxml.ElementTree as ET
         root = ET.fromstring(list_resp.text)
         ns = {'s3': 'http://s3.amazonaws.com/doc/2006-03-01/'}
 
@@ -665,11 +749,19 @@ async def get_live_network():
         )
 
     except httpx.HTTPError as e:
-        raise HTTPException(status_code=502, detail=f"Failed to fetch from S3: {str(e)}")
+        logger.exception("S3 fetch failed")
+        raise HTTPException(status_code=502, detail="Failed to fetch live network data.")
     except KeyError as e:
-        raise HTTPException(status_code=500, detail=f"Invalid snapshot format: missing {str(e)}")
+        logger.exception("Snapshot format error: missing key %s", e)
+        raise HTTPException(status_code=500, detail="Live network snapshot has an unexpected format.")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error processing snapshot: {str(e)}")
+        logger.exception("Error processing snapshot")
+        raise HTTPException(status_code=500, detail="An error occurred while processing the network snapshot.")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    _executor.shutdown(wait=True)
 
 
 if __name__ == "__main__":

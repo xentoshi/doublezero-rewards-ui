@@ -42,15 +42,15 @@ export function LinkEditor({ operatorFilter }: LinkEditorProps) {
             : 'No links yet. Add links using the panel above.'}
         </div>
       ) : (
-        <div className="max-h-[280px] overflow-auto overflow-x-auto border border-ink">
+        <div className="max-h-[280px] overflow-auto overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className="font-mono text-xs uppercase tracking-widest">Route</TableHead>
-                <TableHead className="font-mono text-xs uppercase tracking-widest">Operator</TableHead>
-                <TableHead className="text-right font-mono text-xs uppercase tracking-widest">Latency</TableHead>
-                <TableHead className="text-right font-mono text-xs uppercase tracking-widest">BW</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
+                <TableHead className="font-mono text-xs uppercase tracking-widest hidden sm:table-cell">Operator</TableHead>
+                <TableHead className="text-right font-mono text-xs uppercase tracking-widest hidden sm:table-cell">Latency</TableHead>
+                <TableHead className="text-right font-mono text-xs uppercase tracking-widest hidden sm:table-cell">BW</TableHead>
+                <TableHead className="w-10 sm:w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -65,7 +65,7 @@ export function LinkEditor({ operatorFilter }: LinkEditorProps) {
                         <span className="font-medium">{CITY_NAMES[getCity(link.Device2)] || getCity(link.Device2)}</span>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden sm:table-cell">
                       <div className="flex items-center gap-2">
                         <div
                           className="w-2.5 h-2.5 rounded-full"
@@ -74,10 +74,10 @@ export function LinkEditor({ operatorFilter }: LinkEditorProps) {
                         <span className="text-sm">{operator}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-mono text-sm">
+                    <TableCell className="text-right font-mono text-sm hidden sm:table-cell">
                       {link.Latency.toFixed(1)} ms
                     </TableCell>
-                    <TableCell className="text-right font-mono text-sm">
+                    <TableCell className="text-right font-mono text-sm hidden sm:table-cell">
                       {link.Bandwidth} Gbps
                     </TableCell>
                     <TableCell>

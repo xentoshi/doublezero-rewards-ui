@@ -10,9 +10,11 @@ import {
   SimulationResponse,
   CompareResponse,
   LinkEstimateResponse,
+  EpochFeeData,
 } from '@/types/network';
 import { generateId, resetOperatorColors } from '@/lib/utils';
 import { fetchLiveNetworkData } from '@/lib/liveData';
+import { fetchEpochFees, fetchSolPrice } from '@/lib/fees';
 import { CITY_COORDS } from '@/lib/cities';
 
 // Helper to estimate public internet latency between two cities
@@ -52,6 +54,11 @@ interface NetworkStore {
   } | null;
   isLoadingLiveData: boolean;
 
+  // Fee pool data
+  feePoolData: EpochFeeData | null;
+  solPrice: number | null;
+  isFetchingFees: boolean;
+
   // Mode
   mode: AppMode;
   setMode: (mode: AppMode) => void;
@@ -62,6 +69,7 @@ interface NetworkStore {
 
   // Calculation state
   isCalculating: boolean;
+  calculatingMode: AppMode | null;
   error: string | null;
   simulationResult: SimulationResponse | null;
   compareResult: CompareResponse | null;
@@ -75,11 +83,14 @@ interface NetworkStore {
   clearData: () => void;
   syncModifiedToBaseline: () => void;
 
+  // Fee data
+  loadFeeData: () => Promise<void>;
+
   // Helper actions
   addLinkBetweenCities: (city1: string, city2: string, operator: string, latency: number, bandwidth: number) => void;
 
   // Calculation actions
-  setCalculating: (isCalculating: boolean) => void;
+  setCalculating: (isCalculating: boolean, mode?: AppMode | null) => void;
   setError: (error: string | null) => void;
   setSimulationResult: (result: SimulationResponse | null) => void;
   setCompareResult: (result: CompareResponse | null) => void;
@@ -148,6 +159,9 @@ export const useNetworkStore = create<NetworkStore>((set, get) => ({
   hasData: false,
   liveDataInfo: null,
   isLoadingLiveData: false,
+  feePoolData: null,
+  solPrice: null,
+  isFetchingFees: false,
   mode: 'forecast',
   params: {
     operator_uptime: 0.98,
@@ -155,13 +169,14 @@ export const useNetworkStore = create<NetworkStore>((set, get) => ({
     demand_multiplier: 1.0,
   },
   isCalculating: false,
+  calculatingMode: null,
   error: null,
   simulationResult: null,
   compareResult: null,
   linkEstimateResult: null,
   selectedOperator: null,
 
-  setMode: (mode) => set({ mode, compareResult: null, linkEstimateResult: null }),
+  setMode: (mode) => set({ mode }),
   setParams: (params) => set((state) => ({ params: { ...state.params, ...params } })),
 
   loadLiveData: async () => {
@@ -190,6 +205,23 @@ export const useNetworkStore = create<NetworkStore>((set, get) => ({
         error: err instanceof Error ? err.message : 'Failed to load live data',
       });
       throw err;
+    }
+  },
+
+  loadFeeData: async () => {
+    set({ isFetchingFees: true });
+    try {
+      const [feeData, price] = await Promise.all([
+        fetchEpochFees().catch(() => null),
+        fetchSolPrice(),
+      ]);
+      set({
+        feePoolData: feeData,
+        solPrice: price,
+        isFetchingFees: false,
+      });
+    } catch {
+      set({ isFetchingFees: false });
     }
   },
 
@@ -247,7 +279,7 @@ export const useNetworkStore = create<NetworkStore>((set, get) => ({
     }
   },
 
-  setCalculating: (isCalculating) => set({ isCalculating }),
+  setCalculating: (isCalculating, mode) => set({ isCalculating, calculatingMode: isCalculating ? (mode ?? null) : null }),
   setError: (error) => set({ error }),
   setSimulationResult: (result) => set({ simulationResult: result }),
   setCompareResult: (result) => set({ compareResult: result }),

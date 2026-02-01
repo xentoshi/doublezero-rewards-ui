@@ -18,6 +18,18 @@ export function formatValue(value: number, decimals: number = 4): string {
   return value.toFixed(decimals);
 }
 
+export function formatSol(value: number, decimals: number = 2): string {
+  if (value > 0 && value < 0.01) return '<0.01 SOL';
+  return `${value.toFixed(decimals)} SOL`;
+}
+
+export function formatUsd(value: number): string {
+  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `$${(value / 1_000).toFixed(1)}K`;
+  if (value < 0.01 && value > 0) return '<$0.01';
+  return `$${value.toFixed(2)}`;
+}
+
 // Operator colors for consistent visualization
 const OPERATOR_COLORS: string[] = [
   '#3B82F6', // blue

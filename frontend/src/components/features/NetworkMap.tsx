@@ -2,7 +2,6 @@
 
 import React, { useMemo, useCallback } from 'react';
 import { Map as MapGL, Source, Layer, Marker, Popup, NavigationControl } from 'react-map-gl/maplibre';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNetworkStore } from '@/store/networkStore';
 import { CITY_COORDS, CITY_NAMES } from '@/lib/cities';
 import { getOperatorColor, getUniqueOperators } from '@/lib/utils';
@@ -201,139 +200,132 @@ export function NetworkMap() {
   const filteredLinkCount = filteredGeoJson?.features.length || 0;
 
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="pb-2 shrink-0">
-        <CardTitle className="text-lg">Network Map</CardTitle>
-      </CardHeader>
-      <CardContent className="p-2 flex-1 flex flex-col min-h-0">
-        <div className="w-full flex-1 min-h-0 overflow-hidden border border-ink">
-          <MapGL
-            initialViewState={{
-              longitude: 10,
-              latitude: 30,
-              zoom: 1.5,
+    <div className="h-full w-full relative border border-ink overflow-hidden">
+      <MapGL
+        initialViewState={{
+          longitude: 10,
+          latitude: 30,
+          zoom: 1.5,
+        }}
+        style={{ width: '100%', height: '100%' }}
+        mapStyle="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
+        renderWorldCopies={false}
+        attributionControl={false}
+      >
+        <NavigationControl position="top-right" />
+
+        {/* Lines layer */}
+        {filteredGeoJson && (
+          <Source id="links" type="geojson" data={filteredGeoJson}>
+            <Layer
+              id="links-layer"
+              type="line"
+              paint={{
+                'line-color': ['get', 'color'],
+                'line-width': 2,
+                'line-opacity': 0.8,
+              }}
+            />
+          </Source>
+        )}
+
+        {/* City markers */}
+        {filteredCities.map((city) => (
+          <Marker
+            key={city.city}
+            longitude={city.coordinates[0]}
+            latitude={city.coordinates[1]}
+            anchor="center"
+            onClick={(e) => {
+              e.originalEvent.stopPropagation();
+              handleCityClick(city);
             }}
-            style={{ width: '100%', height: '100%' }}
-            mapStyle="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
-            renderWorldCopies={false}
           >
-            <NavigationControl position="top-right" />
+            <div
+              className="cursor-pointer"
+              style={{
+                width: Math.max(12, Math.min(24, city.linkCount * 2)),
+                height: Math.max(12, Math.min(24, city.linkCount * 2)),
+                borderRadius: '50%',
+                backgroundColor: getOperatorColor(selectedOperator || city.operators[0]),
+                border: '2px solid #111111',
+                boxShadow: '2px 2px 0px 0px #111111',
+              }}
+              title={CITY_NAMES[city.city] || city.city}
+            />
+          </Marker>
+        ))}
 
-            {/* Lines layer */}
-            {filteredGeoJson && (
-              <Source id="links" type="geojson" data={filteredGeoJson}>
-                <Layer
-                  id="links-layer"
-                  type="line"
-                  paint={{
-                    'line-color': ['get', 'color'],
-                    'line-width': 2,
-                    'line-opacity': 0.8,
-                  }}
-                />
-              </Source>
+        {/* Popup */}
+        {popupInfo && (
+          <Popup
+            longitude={popupInfo.lng}
+            latitude={popupInfo.lat}
+            anchor="bottom"
+            onClose={() => setPopupInfo(null)}
+            closeButton={true}
+            closeOnClick={false}
+          >
+            {popupInfo.type === 'city' && (
+              <div className="p-1">
+                <div className="font-serif font-bold text-ink">
+                  {CITY_NAMES[(popupInfo.data as CityData).city] || (popupInfo.data as CityData).city}
+                </div>
+                <div className="text-sm font-mono text-neutral-600">
+                  {(popupInfo.data as CityData).linkCount} links
+                </div>
+                <div className="text-sm font-mono text-neutral-600">
+                  Operators: {(popupInfo.data as CityData).operators.join(', ')}
+                </div>
+              </div>
             )}
+          </Popup>
+        )}
+      </MapGL>
 
-            {/* City markers */}
-            {filteredCities.map((city) => (
-              <Marker
-                key={city.city}
-                longitude={city.coordinates[0]}
-                latitude={city.coordinates[1]}
-                anchor="center"
-                onClick={(e) => {
-                  e.originalEvent.stopPropagation();
-                  handleCityClick(city);
-                }}
-              >
-                <div
-                  className="cursor-pointer"
-                  style={{
-                    width: Math.max(12, Math.min(24, city.linkCount * 2)),
-                    height: Math.max(12, Math.min(24, city.linkCount * 2)),
-                    borderRadius: '50%',
-                    backgroundColor: getOperatorColor(selectedOperator || city.operators[0]),
-                    border: '2px solid #111111',
-                    boxShadow: '2px 2px 0px 0px #111111',
-                  }}
-                  title={CITY_NAMES[city.city] || city.city}
-                />
-              </Marker>
-            ))}
+      {/* Overlay: Stats */}
+      <div className="absolute top-2 left-2 bg-newsprint/90 backdrop-blur-sm px-2 py-1 border border-ink text-xs font-mono text-neutral-600">
+        {selectedOperator ? (
+          <span>{filteredLinkCount} links — <strong className="text-ink">{selectedOperator}</strong></span>
+        ) : (
+          <span>{cities.length} cities · {links.length} links</span>
+        )}
+      </div>
 
-            {/* Popup */}
-            {popupInfo && (
-              <Popup
-                longitude={popupInfo.lng}
-                latitude={popupInfo.lat}
-                anchor="bottom"
-                onClose={() => setPopupInfo(null)}
-                closeButton={true}
-                closeOnClick={false}
-              >
-                {popupInfo.type === 'city' && (
-                  <div className="p-1">
-                    <div className="font-serif font-bold text-ink">
-                      {CITY_NAMES[(popupInfo.data as CityData).city] || (popupInfo.data as CityData).city}
-                    </div>
-                    <div className="text-sm font-mono text-neutral-600">
-                      {(popupInfo.data as CityData).linkCount} links
-                    </div>
-                    <div className="text-sm font-mono text-neutral-600">
-                      Operators: {(popupInfo.data as CityData).operators.join(', ')}
-                    </div>
-                  </div>
-                )}
-              </Popup>
-            )}
-          </MapGL>
-        </div>
-
-        {/* Stats */}
-        <div className="mt-2 text-xs font-mono text-neutral-500">
-          {selectedOperator ? (
-            <span>Showing {filteredLinkCount} links for <strong className="text-ink">{selectedOperator}</strong></span>
-          ) : (
-            <span>{cities.length} cities · {links.length} links</span>
-          )}
-        </div>
-
-        {/* Legend - clickable to filter */}
-        <div className="mt-3 border border-ink p-3">
-          <div className="text-xs font-mono uppercase tracking-widest text-neutral-500 mb-2">Click operator to filter:</div>
-          <div className="flex flex-wrap gap-2">
+      {/* Overlay: Legend */}
+      <div className="absolute bottom-2 left-2 right-2 bg-newsprint/90 backdrop-blur-sm border border-ink p-2">
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            onClick={() => setSelectedOperator(null)}
+            className={`text-xs font-mono uppercase tracking-wider px-2 py-1 border transition-colors ${
+              !selectedOperator
+                ? 'bg-ink text-newsprint border-ink'
+                : 'bg-newsprint text-ink border-neutral-300 hover:border-ink'
+            }`}
+          >
+            All
+          </button>
+          {operators.map((operator) => (
             <button
-              onClick={() => setSelectedOperator(null)}
-              className={`text-xs font-mono uppercase tracking-wider px-2 py-1 border transition-colors ${
-                !selectedOperator
+              key={operator}
+              onClick={() => setSelectedOperator(selectedOperator === operator ? null : operator)}
+              className={`flex items-center gap-1.5 text-xs font-mono px-2 py-1 border transition-colors ${
+                selectedOperator === operator
                   ? 'bg-ink text-newsprint border-ink'
+                  : selectedOperator
+                  ? 'bg-muted text-neutral-400 border-neutral-200'
                   : 'bg-newsprint text-ink border-neutral-300 hover:border-ink'
               }`}
             >
-              All
+              <div
+                className="w-2.5 h-2.5 rounded-full"
+                style={{ backgroundColor: getOperatorColor(operator) }}
+              />
+              <span>{operator}</span>
             </button>
-            {operators.map((operator) => (
-              <button
-                key={operator}
-                onClick={() => setSelectedOperator(selectedOperator === operator ? null : operator)}
-                className={`flex items-center gap-1.5 text-xs font-mono px-2 py-1 border transition-colors ${
-                  selectedOperator === operator
-                    ? 'bg-ink text-newsprint border-ink'
-                    : selectedOperator
-                    ? 'bg-muted text-neutral-400 border-neutral-200'
-                    : 'bg-newsprint text-ink border-neutral-300 hover:border-ink'
-                }`}
-              >
-                <div
-                  className="w-2.5 h-2.5 rounded-full"
-                  style={{ backgroundColor: getOperatorColor(operator) }}
-                />
-                <span>{operator}</span>
-              </button>
-            ))}
-          </div>
+          ))}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

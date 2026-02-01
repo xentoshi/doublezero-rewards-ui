@@ -42,8 +42,8 @@ export function BaselineDiff() {
   };
 
   return (
-    <div className="border border-ink px-4 py-3">
-      <div className="text-xs font-mono uppercase tracking-widest text-ink mb-2">Changes from baseline</div>
+    <div className="py-3">
+      <div className="text-xs font-mono uppercase tracking-widest text-neutral-500 mb-2">Changes from baseline</div>
       <div className="flex flex-wrap gap-2">
         {changes.addedLinks.map((link, i) => (
           <Badge key={`add-${i}`} variant="outline" className="border-ink text-ink">

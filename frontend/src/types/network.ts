@@ -85,6 +85,19 @@ export interface LinkEstimateResponse {
   warning: string;
 }
 
+export interface EpochFeeData {
+  epoch: number;
+  totalFeeSol: number;
+  validatorCount: number;
+}
+
+export interface LinkCostEstimate {
+  category: string;
+  monthlyMin: number;
+  monthlyMax: number;
+  notes: string;
+}
+
 export type AppMode = 'forecast' | 'linkvalue';
 
 export interface SimulationParams {

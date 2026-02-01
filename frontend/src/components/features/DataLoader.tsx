@@ -18,14 +18,15 @@ export function DataLoader() {
       setProgress(0);
       return;
     }
-    setProgress(5);
+    setProgress(3);
     const interval = setInterval(() => {
       setProgress((prev) => {
-        if (prev >= 90) return prev;
-        const increment = prev < 30 ? 8 : prev < 60 ? 4 : 1.5;
-        return Math.min(prev + increment, 90);
+        if (prev >= 95) return prev;
+        const remaining = 95 - prev;
+        const increment = remaining * 0.05 + 0.4;
+        return Math.min(prev + increment, 95);
       });
-    }, 500);
+    }, 700);
     return () => clearInterval(interval);
   }, [isLoadingLiveData]);
 
@@ -48,10 +49,10 @@ export function DataLoader() {
   return (
     <Card className="max-w-lg mx-auto">
       <CardHeader className="text-center border-b-0">
-        <div className="flex justify-center mb-4">
-          <img src="/logo.svg" alt="DoubleZero" className="h-16 w-16" />
+        <div className="flex justify-center mb-3 sm:mb-4">
+          <img src="/logo.svg" alt="DoubleZero" className="h-12 w-12 sm:h-16 sm:w-16" />
         </div>
-        <CardTitle className="text-3xl font-serif">DoubleZero Rewards</CardTitle>
+        <CardTitle className="text-2xl sm:text-3xl font-serif">DoubleZero Rewards</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {isLoadingLiveData ? (

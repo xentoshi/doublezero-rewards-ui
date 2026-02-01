@@ -30,6 +30,17 @@ Allows existing contributors to get a fuzzy estimate of the relative value-add o
 - View per-link contribution estimates
 - Includes appropriate warnings about approximation accuracy
 
+### ROI Earnings Estimates
+
+After running a comparison, the tool estimates real SOL and USD earnings:
+
+- **Fee pool data** fetched from [doublezerofoundation/fees](https://github.com/doublezerofoundation/fees) — per-validator fees assessed each epoch (5% of block rewards)
+- **SOL price** fetched from CoinGecko public API
+- **Earnings highlight card** showing estimated SOL/epoch, SOL/month, and USD equivalents for the top-gaining operator
+- **Earnings columns** in the comparison table (Est. SOL/epoch, Est. SOL/month)
+- **Infrastructure cost reference** — collapsible table of approximate industry cost ranges for context
+- Graceful degradation: works with percentages only if fee data or price is unavailable
+
 ## Prerequisites
 
 - Node.js 18+ (for frontend)
@@ -96,7 +107,7 @@ doublezero-rewards-ui/
 │   ├── src/
 │   │   ├── app/                 # Next.js pages
 │   │   ├── components/          # React components
-│   │   ├── lib/                 # Utilities, API client, live data fetcher
+│   │   ├── lib/                 # Utilities, API client, live data fetcher, fee pool data
 │   │   ├── store/               # Zustand state management
 │   │   └── types/               # TypeScript types
 │   ├── package.json

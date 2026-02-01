@@ -110,7 +110,7 @@ export function DemandEditor() {
           No demand entries yet. Add traffic demand above.
         </div>
       ) : (
-        <div className="max-h-[280px] overflow-auto border border-ink">
+        <div className="max-h-[280px] overflow-auto">
           <Table>
             <TableHeader>
               <TableRow>

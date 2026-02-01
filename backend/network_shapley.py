@@ -538,16 +538,30 @@ def network_shapley(
     svalue = np.full(n_coal, -np.inf)
     size = np.zeros(n_coal, dtype=int)
 
+    # Precompute per-operator boolean masks (avoids repeated np.isin inside loop)
+    fixed_row1 = np.isin(prim["row_index1"], ["Public", "Private"])
+    fixed_row2 = np.isin(prim["row_index2"], ["Public", "Private"])
+    fixed_col1 = np.isin(prim["col_index1"], ["Public", "Private"])
+    fixed_col2 = np.isin(prim["col_index2"], ["Public", "Private"])
+    op_row1 = np.array([prim["row_index1"] == op for op in operators])  # (n_ops, n_rows)
+    op_row2 = np.array([prim["row_index2"] == op for op in operators])
+    op_col1 = np.array([prim["col_index1"] == op for op in operators])  # (n_ops, n_cols)
+    op_col2 = np.array([prim["col_index2"] == op for op in operators])
+
     # Iterate over coalitions and solve linear program for each set of operators and their links (plus public links)
     for idx in range(n_coal):
-        subset = operators[bitmap[:, idx] == 1]
-        size[idx] = subset.size
+        members = bitmap[:, idx] == 1
+        size[idx] = members.sum()
 
-        # Masks used to access relevant coalition sets (and public operator)
-        row_mask = (np.isin(prim["row_index1"], np.concatenate((["Public", "Private"], subset))) &
-                    np.isin(prim["row_index2"], np.concatenate((["Public", "Private"], subset))))
-        col_mask = (np.isin(prim["col_index1"], np.concatenate((["Public", "Private"], subset))) &
-                    np.isin(prim["col_index2"], np.concatenate((["Public", "Private"], subset))))
+        # Combine precomputed masks: fixed (Public/Private) OR any active operator
+        if members.any():
+            row_mask = (fixed_row1 | np.any(op_row1[members], axis=0)) & \
+                       (fixed_row2 | np.any(op_row2[members], axis=0))
+            col_mask = (fixed_col1 | np.any(op_col1[members], axis=0)) & \
+                       (fixed_col2 | np.any(op_col2[members], axis=0))
+        else:
+            row_mask = fixed_row1 & fixed_row2
+            col_mask = fixed_col1 & fixed_col2
 
         # Solve linear program and save result
         res = linprog(prim["cost"][col_mask],

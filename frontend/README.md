@@ -8,6 +8,7 @@ A tool for simulating fair reward distribution across DoubleZero network contrib
 - **Simulates link changes** — add a proposed fiber connection between any two cities and instantly see how reward shares shift for every operator
 - **Compares baseline vs. modified** — side-by-side Shapley value comparison showing who gains and who loses
 - **Estimates per-link value** — for a given operator, see which of their existing links contributes the most to their total reward share
+- **ROI earnings estimates** — after comparison, shows estimated SOL/epoch, SOL/month, and USD earnings based on the real DoubleZero fee pool from [doublezerofoundation/fees](https://github.com/doublezerofoundation/fees) and SOL price from CoinGecko
 - **Interactive map** — MapLibre-powered visualization of the full network topology with operator filtering
 
 ## Tech Stack
@@ -91,10 +92,13 @@ src/
     liveData.ts           Fetch live topology from backend
     cities.ts             40+ city coordinates and names
     utils.ts              Colors, formatting, ID generation
+    fees.ts               Fee pool fetcher, SOL price, earnings computation
   types/
     network.ts            TypeScript interfaces for all data
 ```
 
-## Data Source
+## Data Sources
 
-Live network data is fetched from the DoubleZero mainnet-beta topology repository via the backend API. The backend reads epoch snapshots from an S3 bucket (`doublezero-contributor-rewards-mn-beta-snapshots.s3.amazonaws.com`), parsing registered operators, devices, private links, and their geographic locations. This is the same source of truth used by the DoubleZero network registry.
+- **Network topology** — fetched from DoubleZero mainnet-beta topology repository via the backend API. The backend reads epoch snapshots from an S3 bucket (`doublezero-contributor-rewards-mn-beta-snapshots.s3.amazonaws.com`), parsing registered operators, devices, private links, and their geographic locations. This is the same source of truth used by the DoubleZero network registry.
+- **Fee pool** — fetched client-side from [doublezerofoundation/fees](https://github.com/doublezerofoundation/fees) (`fees_and_payments.csv`). The tool sums the latest epoch's `dz_fee_lamports_{epoch}` column across all validators to get the total fee pool in SOL.
+- **SOL price** — fetched client-side from CoinGecko public API. Used for USD conversion only; the UI works without it.
